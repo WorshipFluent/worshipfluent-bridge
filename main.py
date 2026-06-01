@@ -145,6 +145,45 @@ def save_config(cfg: dict):
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+import re as _re
+
+
+def _bible_slide_label(slide_text: str, group_name: str) -> str:
+    """Derive a specific verse label for a Bible module slide.
+
+    ProPresenter Bible module format:
+        "Genesis 2:1-3\r1Thus the heavens...\n2And on the seventh day..."
+
+    group_name carries the passage range ("Genesis 2:1-3").  The digit(s) at
+    the start of the content (after \r) identify the first verse on this slide.
+    We combine them to produce a precise label like "Genesis 2:1" so the
+    backend can look up the correct individual verse rather than the whole range.
+    """
+    if "\r" not in slide_text:
+        return group_name
+    content = slide_text.split("\r", 1)[1]
+    m = _re.match(r"^(\d+)", content.strip())
+    if not m:
+        return group_name
+    verse_num = m.group(1)
+    # "1 Corinthians 13:4-7".rsplit(":", 1) → ["1 Corinthians 13", "4-7"]
+    parts = group_name.rsplit(":", 1)
+    if len(parts) != 2:
+        return group_name
+    return f"{parts[0]}:{verse_num}"
+
+
+def _clean_slide_text(slide_text: str) -> str:
+    """Strip the ProPresenter Bible module header from slide text.
+
+    Format: "Genesis 2:1-3\r1Thus the heavens..."
+    Returns: "1Thus the heavens..."
+    """
+    if "\r" in slide_text:
+        return slide_text.split("\r", 1)[1]
+    return slide_text
+
+
 class ProPresenterClient:
     """Thin wrapper around ProPresenter's local REST API (v1)."""
 
@@ -206,9 +245,17 @@ class ProPresenterClient:
         slides: list[str] = []
         slide_labels: list[str] = []
         for group in groups:
+            group_n = group.get("name", "")
             for slide in group.get("slides", []):
-                slides.append(slide.get("text", ""))
-                slide_labels.append(slide.get("label", ""))
+                raw_text = slide.get("text", "")
+                raw_label = slide.get("label", "")
+                if "\r" in raw_text and group_n:
+                    # Bible module slide: strip header, derive specific verse label
+                    slides.append(_clean_slide_text(raw_text))
+                    slide_labels.append(_bible_slide_label(raw_text, group_n))
+                else:
+                    slides.append(raw_text)
+                    slide_labels.append(raw_label)
 
         if not slides:
             return None
