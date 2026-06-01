@@ -249,10 +249,20 @@ class ProPresenterClient:
             for slide in group.get("slides", []):
                 raw_text = slide.get("text", "")
                 raw_label = slide.get("label", "")
-                if "\r" in raw_text and group_n:
-                    # Bible module slide: strip header, derive specific verse label
-                    slides.append(_clean_slide_text(raw_text))
-                    slide_labels.append(_bible_slide_label(raw_text, group_n))
+                if "\r" in raw_text:
+                    # Always strip the ProPresenter header (text before \r)
+                    clean_text = _clean_slide_text(raw_text)
+                    # Only derive a specific verse label when the slide's own label
+                    # matches the group name — that's the Bible module pattern where
+                    # every slide in a passage shares the same range label like
+                    # "Genesis 2:1-3". Regular scripture presentations already carry
+                    # a specific label per slide ("Génesis 1:1") so use it as-is.
+                    if group_n and raw_label == group_n:
+                        label = _bible_slide_label(raw_text, group_n)
+                    else:
+                        label = raw_label
+                    slides.append(clean_text)
+                    slide_labels.append(label)
                 else:
                     slides.append(raw_text)
                     slide_labels.append(raw_label)
