@@ -325,20 +325,23 @@ class ProPresenterClient:
         return [{"name": p.get("name", ""), "uuid": p.get("uuid", "")} for p in items]
 
     def get_presentation(self, uuid: str) -> Optional[dict]:
-        # ProPresenter only serves slide content for the currently active presentation.
-        # Use /presentation/active — the user should navigate to the song in PP first.
-        data = self._get("/presentation/active")
+        data = self._get(f"/presentation/{uuid}")
         if not data:
             return None
-        pres = data.get("presentation", data) if isinstance(data, dict) else {}
-        groups = pres.get("groups", [])
-        texts = []
-        for group in groups:
-            for slide in group.get("slides", []):
-                text = slide.get("text", "")
-                if text:
-                    texts.append(text)
-        return {"slide_text": texts or None}
+        pres = data.get("presentation", {}) if isinstance(data, dict) else {}
+        groups = []
+        for group in pres.get("groups", []):
+            slides = [
+                {"text": s.get("text", "")}
+                for s in group.get("slides", [])
+                if s.get("text", "").strip()
+            ]
+            if slides:
+                groups.append({"name": group.get("name", ""), "slides": slides})
+        return {
+            "presentation_path": pres.get("presentation_path", ""),
+            "groups": groups,
+        }
 
     def get_playlists(self) -> list:
         # Mirrors the libraries pattern: /v1/playlists returns list of playlists
@@ -694,9 +697,11 @@ async def _handle_backend_message(ws, msg: dict, pp_client: ProPresenterClient):
         await ws.send(json.dumps({"type": "playlist_reply", "presentations": pp_client.get_playlist_items(msg.get("id", ""))}))
     elif t == "get_presentation":
         data = pp_client.get_presentation(msg.get("uuid", ""))
-        await ws.send(
-            json.dumps({"type": "presentation_reply", "slide_text": data.get("slide_text") if data else None})
-        )
+        await ws.send(json.dumps({
+            "type": "presentation_reply",
+            "presentation_path": data.get("presentation_path", "") if data else "",
+            "groups": data.get("groups") if data else None,
+        }))
     elif t == "close":
         await ws.close()
 
