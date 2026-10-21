@@ -743,7 +743,7 @@ class BridgeWindow:
         self._scanning = False
         self._bridge_thread: Optional[threading.Thread] = None
 
-        root.title(f"Versespan  {VERSION}")
+        root.title(f"WorshipFluent  {VERSION}")
         root.resizable(True, True)
         root.minsize(540, 340 if sys.platform == "win32" else 560)
         root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -1055,7 +1055,7 @@ class BridgeWindow:
             )
             try:
                 state.tray_icon.icon = _make_tray_icon(color)
-                state.tray_icon.title = f"Versespan — {state.now_playing}"
+                state.tray_icon.title = f"WorshipFluent — {state.now_playing}"
             except Exception:
                 pass
 
@@ -1131,10 +1131,10 @@ def _show_setup_dialog(pre_code: str = "") -> Optional[dict]:
     result = [None]
 
     dlg = tk.Tk()
-    dlg.title("Versespan — First Run Setup")
+    dlg.title("WorshipFluent — First Run Setup")
     dlg.resizable(False, False)
 
-    ttk.Label(dlg, text="Welcome to Versespan", font=("", 13, "bold")).pack(pady=(16, 4), padx=20)
+    ttk.Label(dlg, text="Welcome to WorshipFluent", font=("", 13, "bold")).pack(pady=(16, 4), padx=20)
     ttk.Label(
         dlg,
         text="Paste your connection code from the admin Settings page.\n"
@@ -1164,7 +1164,7 @@ def _show_setup_dialog(pre_code: str = "") -> Optional[dict]:
     manual.columnconfigure(1, weight=1)
 
     ttk.Label(manual, text="Backend URL:").grid(row=0, column=0, sticky="w")
-    url_var = tk.StringVar(value="https://versespan-api.fly.dev")
+    url_var = tk.StringVar(value="https://api.worshipfluent.com")
     ttk.Entry(manual, textvariable=url_var, width=38).grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
     ttk.Label(manual, text="Church ID:").grid(row=1, column=0, sticky="w", pady=(6, 0))
@@ -1292,7 +1292,7 @@ if __name__ == "__main__":
         try:
             import tkinter.messagebox as _mb
 
-            _mb.showerror("Versespan — Fatal Error", msg)
+            _mb.showerror("WorshipFluent — Fatal Error", msg)
         except Exception:
             print(msg)
         sys.exit(1)

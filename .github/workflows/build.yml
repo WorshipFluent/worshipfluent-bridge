@@ -27,7 +27,7 @@ jobs:
           pyinstaller
           --onefile
           --windowed
-          --name Versespan
+          --name WorshipFluent
           --hidden-import tkinter
           --hidden-import tkinter.ttk
           --hidden-import tkinter.scrolledtext
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: dist/Versespan.exe
+          path: dist/WorshipFluent.exe
 
   build-macos:
     name: Build macOS .app
@@ -62,7 +62,7 @@ jobs:
           pyinstaller
           --onefile
           --windowed
-          --name Versespan
+          --name WorshipFluent
           --hidden-import tkinter
           --hidden-import tkinter.ttk
           --hidden-import tkinter.scrolledtext
@@ -74,12 +74,12 @@ jobs:
       - name: Zip .app bundle
         run: |
           cd dist
-          zip -r Versespan-mac.zip Versespan.app
+          zip -r WorshipFluent-mac.zip WorshipFluent.app
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: dist/Versespan-mac.zip
+          path: dist/WorshipFluent-mac.zip
 
   release:
     name: Create GitHub Release
@@ -102,6 +102,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/Versespan.exe
-            artifacts/Versespan-mac.zip
+            artifacts/WorshipFluent.exe
+            artifacts/WorshipFluent-mac.zip
           generate_release_notes: true
