@@ -56,6 +56,13 @@ jobs:
           echo "VITE_APP_VERSION=$V" >> "$GITHUB_ENV"
           node -e "const f='src-tauri/tauri.conf.json';const j=require('./'+f);j.version='$V';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
           node -e "const f='package.json';const j=require('./'+f);j.version='$V';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          # Updater artifacts need the private key; without the secret the build still succeeds, just without self-update files.
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            node -e "const f='src-tauri/tauri.conf.json';const j=require('./'+f);j.bundle.createUpdaterArtifacts=false;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+            echo "No TAURI_SIGNING_PRIVATE_KEY secret: building without updater artifacts"
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       - name: Build (Tauri)
         uses: tauri-apps/tauri-action@v0
@@ -70,7 +77,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: --target ${{ matrix.target }}
-          includeUpdaterJson: true
+          includeUpdaterJson: false
           uploadRelease: false
 
       # Azure Trusted Signing. Repo secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
