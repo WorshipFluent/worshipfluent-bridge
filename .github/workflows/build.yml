@@ -16,20 +16,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: macos-latest
-            target: universal-apple-darwin
-        # The Mac build waits for a Mac church (and the Apple account): BUILD_MAC=true turns it on.
-        exclude:
-          - os: ${{ vars.BUILD_MAC == 'true' && 'none' || 'macos-latest' }}
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    runs-on: windows-latest
     permissions:
       contents: write
     env:
@@ -44,7 +32,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: 
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -80,7 +68,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          args: --target ${{ matrix.target }}
+          args: --target x86_64-pc-windows-msvc
           includeUpdaterJson: false
           uploadRelease: false
 
@@ -88,7 +76,7 @@ jobs:
       # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE. Without them the
       # installer is built unsigned (SmartScreen warns). Swap this step for SSL.com eSigner if needed.
       - name: Sign the Windows installer
-        if: ${{ matrix.os == 'windows-latest' && env.HAS_AZURE == 'true' }}
+        if: ${{ env.HAS_AZURE == 'true' }}
         uses: azure/trusted-signing-action@v0.5.1
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -97,7 +85,7 @@ jobs:
           endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
-          files-folder: src-tauri/target/${{ matrix.target }}/release/bundle/nsis
+          files-folder: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis
           files-folder-filter: exe
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
@@ -107,8 +95,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          B="src-tauri/target/${{ matrix.target }}/release/bundle"
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          B="src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          if [ "windows-latest" = "windows-latest" ]; then
             cp "$B"/nsis/*-setup.exe out/WorshipFluent-Setup.exe
             cp "$B"/nsis/*-setup.exe.sig out/WorshipFluent-Setup.exe.sig 2>/dev/null || true
           else
@@ -120,12 +108,110 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bundle-${{ matrix.os }}
+          name: bundle-windows-latest
           path: out/
 
+
+  build-mac:
+    runs-on: macos-latest
+    if: ${{ vars.BUILD_MAC == 'true' }}  # waits for a Mac church and the Apple account
+    permissions:
+      contents: write
+    env:
+      HAS_AZURE: ${{ secrets.AZURE_CLIENT_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Version from the tag
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"; [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && V="0.0.0-dev"
+          echo "VITE_APP_VERSION=$V" >> "$GITHUB_ENV"
+          node -e "const f='src-tauri/tauri.conf.json';const j=require('./'+f);j.version='$V';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          node -e "const f='package.json';const j=require('./'+f);j.version='$V';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          # Updater artifacts need the private key; without the secret the build still succeeds, just without self-update files.
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            node -e "const f='src-tauri/tauri.conf.json';const j=require('./'+f);j.bundle.createUpdaterArtifacts=false;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+            echo "No TAURI_SIGNING_PRIVATE_KEY secret: building without updater artifacts"
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
+      - name: Build (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          args: --target universal-apple-darwin
+          includeUpdaterJson: false
+          uploadRelease: false
+
+      # Azure Trusted Signing. Repo secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+      # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE. Without them the
+      # installer is built unsigned (SmartScreen warns). Swap this step for SSL.com eSigner if needed.
+      - name: Sign the Windows installer
+        if: false
+        uses: azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: src-tauri/target/universal-apple-darwin/release/bundle/nsis
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Collect release files
+        shell: bash
+        run: |
+          mkdir -p out
+          B="src-tauri/target/universal-apple-darwin/release/bundle"
+          if [ "macos-latest" = "windows-latest" ]; then
+            cp "$B"/nsis/*-setup.exe out/WorshipFluent-Setup.exe
+            cp "$B"/nsis/*-setup.exe.sig out/WorshipFluent-Setup.exe.sig 2>/dev/null || true
+          else
+            cp "$B"/dmg/*.dmg out/WorshipFluent-Setup.dmg
+            cp "$B"/macos/*.app.tar.gz out/WorshipFluent.app.tar.gz 2>/dev/null || true
+            cp "$B"/macos/*.app.tar.gz.sig out/WorshipFluent.app.tar.gz.sig 2>/dev/null || true
+          fi
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-macos-latest
+          path: out/
+
+
   release:
-    needs: build
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    needs: [build-windows, build-mac]
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.build-windows.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
