@@ -29,10 +29,10 @@
           "url": "https://api.worshipfluent.com/*"
         },
         {
-          "url": "http://**"
+          "url": "http://*:*"
         },
         {
-          "url": "https://**"
+          "url": "https://*:*"
         }
       ]
     }
