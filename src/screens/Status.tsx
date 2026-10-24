@@ -116,15 +116,15 @@ export function Status({ state, actions }: { state: AppState; actions: Actions }
       {!state.pp && state.ppSearch === "none" && !state.manual && (
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
           <p>
-            In ProPresenter open <b>Preferences → Network</b>, turn on <b>Enable Network</b>, and set the port to <b>50001</b>. We'll
-            connect the moment it answers.
+            In ProPresenter open <b>Preferences → Network</b> and turn on <b>Enable Network</b>. Any port works; we'll connect the moment it
+            answers. ProPresenter on another computer? Enter the address and port shown on that screen.
           </p>
           <div className="flex flex-wrap gap-2">
             <button className="rounded-lg bg-gold px-3 py-1.5 font-semibold text-bg hover:brightness-110" onClick={actions.retryDiscovery}>
               Look again
             </button>
             <button className="rounded-lg border border-border px-3 py-1.5 font-semibold hover:bg-gold-dim" onClick={actions.openManual}>
-              ProPresenter is on another computer
+              Enter the address and port
             </button>
           </div>
         </div>
@@ -197,13 +197,13 @@ function ManualAddress({ state, actions }: { state: AppState; actions: Actions }
     >
       <div className="font-semibold">Where is ProPresenter?</div>
       <p className="text-muted">
-        On the ProPresenter computer, open <b>Preferences → Network</b>. The address and port are shown there.
+        In ProPresenter, <b>Preferences → Network</b> shows the address and port. Same computer? Use <b>localhost</b> and that port.
       </p>
       <div className="flex gap-2">
         <input
           id="pp-host"
           className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-text outline-none focus:border-gold"
-          placeholder="192.168.1.20"
+          placeholder="localhost or 192.168.1.20"
           value={host}
           onChange={(e) => setHost(e.target.value)}
           autoFocus

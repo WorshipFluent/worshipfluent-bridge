@@ -1,6 +1,6 @@
 [package]
 name = "worshipfluent-bridge"
-version = "2.0.0"
+version = "2.0.1"
 description = "WorshipFluent ProPresenter bridge"
 authors = ["WorshipFluent"]
 edition = "2021"
@@ -25,4 +25,4 @@ tauri-plugin-updater = "2"
 tauri-plugin-websocket = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["net", "time", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["net", "time", "rt-multi-thread", "macros", "sync"] }

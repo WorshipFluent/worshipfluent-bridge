@@ -62,6 +62,34 @@ async fn scan_lan(port: u16) -> Vec<ScanHit> {
     hits
 }
 
+/// Open TCP ports on this computer (1024–65535). ProPresenter picks its own network
+/// port per install, so "same computer, any port" is the common case. The TypeScript
+/// side confirms each candidate with ProPresenter's API; this just finds what listens.
+#[tauri::command]
+async fn scan_local_ports() -> Vec<u16> {
+    let mut open = vec![];
+    let mut tasks = tokio::task::JoinSet::new();
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(1500));
+    for port in 1024u16..=65535 {
+        let sem = sem.clone();
+        tasks.spawn(async move {
+            let _permit = sem.acquire_owned().await.ok()?;
+            let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+            match tokio::time::timeout(Duration::from_millis(250), tokio::net::TcpStream::connect(addr)).await {
+                Ok(Ok(_)) => Some(port),
+                _ => None,
+            }
+        });
+    }
+    while let Some(res) = tasks.join_next().await {
+        if let Ok(Some(port)) = res {
+            open.push(port);
+        }
+    }
+    open.sort_unstable();
+    open
+}
+
 /// Tray state the UI reports: "unpaired" | "searching" | "ready" | "live".
 #[tauri::command]
 fn set_tray(app: AppHandle, state: String, title: String) {
@@ -101,7 +129,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_websocket::init())
-        .invoke_handler(tauri::generate_handler![scan_lan, set_tray])
+        .invoke_handler(tauri::generate_handler![scan_lan, scan_local_ports, set_tray])
         .setup(|app| {
             #[cfg(any(windows, target_os = "linux"))]
             {

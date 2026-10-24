@@ -3,7 +3,7 @@
  * app never trusts an open port: a computer is "ProPresenter" only when
  * /version answers like ProPresenter.
  */
-import { httpFetch, scanLan } from "./platform";
+import { httpFetch, scanLan, scanLocalPorts } from "./platform";
 
 export const DEFAULT_PORT = 50001;
 
@@ -56,6 +56,12 @@ export async function discover(
   onProgress("local");
   for (const host of ["localhost", "127.0.0.1"]) {
     const hit = await identify({ host, port });
+    if (hit) return hit;
+  }
+  // Same computer, any port: ProPresenter picks its network port per install.
+  const ports = (await scanLocalPorts()).filter((p) => p !== port && p !== 1420);
+  for (const p of ports.slice(0, 200)) {
+    const hit = await identify({ host: "127.0.0.1", port: p }, 700);
     if (hit) return hit;
   }
   onProgress("lan");

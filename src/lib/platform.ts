@@ -80,6 +80,13 @@ export async function scanLan(port: number): Promise<{ host: string; port: numbe
   return invoke<{ host: string; port: number }[]>("scan_lan", { port });
 }
 
+/** Ports listening on this computer; ProPresenter is confirmed by its API afterwards. */
+export async function scanLocalPorts(): Promise<number[]> {
+  if (!isTauri) return [];
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<number[]>("scan_local_ports");
+}
+
 export async function setTray(state: "unpaired" | "searching" | "ready" | "live", title: string) {
   if (!isTauri) return;
   const { invoke } = await import("@tauri-apps/api/core");
