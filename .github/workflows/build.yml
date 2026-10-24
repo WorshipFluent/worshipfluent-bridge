@@ -142,7 +142,11 @@ jobs:
           ' "$V" "$URL"
           cat artifacts/latest.json
 
+      # Pre-release until the installer has been run on a real Windows PC: the backend's
+      # download button serves GitHub's "latest" release, which skips pre-releases, so
+      # churches keep getting the current app until this one is promoted.
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
           generate_release_notes: true
+          prerelease: ${{ vars.BRIDGE_V2_PROMOTED != 'true' }}
