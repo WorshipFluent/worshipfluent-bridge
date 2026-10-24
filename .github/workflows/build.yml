@@ -1,107 +1,148 @@
 name: Build & Release
 
+# Push a v* tag: builds the Windows installer (and the Mac disk image when the
+# BUILD_MAC repo variable is "true"), signs it when the signing secrets exist,
+# and publishes a GitHub release with the updater manifest the app checks daily.
+#
+# Release assets the backend looks for (api/propresenter.py download-bridge):
+#   WorshipFluent-Setup.exe   served to churches as WorshipFluent-Setup-<code>.exe
+#   WorshipFluent-Setup.dmg   (Mac, when enabled)
+#   latest.json + *.sig       the Tauri updater manifest and signatures
+
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
-  build-windows:
-    name: Build Windows .exe
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: universal-apple-darwin
+    runs-on: ${{ matrix.os }}
+    # The Mac build waits for a Mac church (and the Apple account): BUILD_MAC=true turns it on.
+    if: ${{ matrix.os == 'windows-latest' || vars.BUILD_MAC == 'true' }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
 
       - name: Install dependencies
-        run: pip install requests websockets certifi pystray Pillow zeroconf pyinstaller
+        run: npm ci
 
-      - name: Inject version
-        run: python inject_version.py ${{ github.ref_name }}
-
-      - name: Build exe
-        run: >
-          pyinstaller
-          --onefile
-          --windowed
-          --name WorshipFluent
-          --hidden-import tkinter
-          --hidden-import tkinter.ttk
-          --hidden-import tkinter.scrolledtext
-          --hidden-import tkinter.messagebox
-          --collect-submodules tkinter
-          --collect-data certifi
-          main.py
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-exe
-          path: dist/WorshipFluent.exe
-
-  build-macos:
-    name: Build macOS .app
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install requests websockets certifi pystray Pillow zeroconf pyinstaller
-
-      - name: Inject version
-        run: python3 -c "import re; t=open('main.py').read(); open('main.py','w').write(re.sub(r'VERSION = \"dev\"', 'VERSION = \"${{ github.ref_name }}\"', t))"
-
-      - name: Build app
-        run: >
-          pyinstaller
-          --onefile
-          --windowed
-          --name WorshipFluent
-          --hidden-import tkinter
-          --hidden-import tkinter.ttk
-          --hidden-import tkinter.scrolledtext
-          --hidden-import tkinter.messagebox
-          --collect-submodules tkinter
-          --collect-data certifi
-          main.py
-
-      - name: Zip .app bundle
+      - name: Version from the tag
+        shell: bash
         run: |
-          cd dist
-          zip -r WorshipFluent-mac.zip WorshipFluent.app
+          V="${GITHUB_REF_NAME#v}"; [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && V="0.0.0-dev"
+          echo "VITE_APP_VERSION=$V" >> "$GITHUB_ENV"
+          node -e "const f='src-tauri/tauri.conf.json';const j=require('./'+f);j.version='$V';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          node -e "const f='package.json';const j=require('./'+f);j.version='$V';require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+
+      - name: Build (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          args: --target ${{ matrix.target }}
+          includeUpdaterJson: true
+          uploadRelease: false
+
+      # Azure Trusted Signing. Repo secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+      # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE. Without them the
+      # installer is built unsigned (SmartScreen warns). Swap this step for SSL.com eSigner if needed.
+      - name: Sign the Windows installer
+        if: ${{ matrix.os == 'windows-latest' && env.AZURE_CLIENT_ID != '' }}
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        uses: azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: src-tauri/target/${{ matrix.target }}/release/bundle/nsis
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Collect release files
+        shell: bash
+        run: |
+          mkdir -p out
+          B="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp "$B"/nsis/*-setup.exe out/WorshipFluent-Setup.exe
+            cp "$B"/nsis/*-setup.exe.sig out/WorshipFluent-Setup.exe.sig 2>/dev/null || true
+          else
+            cp "$B"/dmg/*.dmg out/WorshipFluent-Setup.dmg
+            cp "$B"/macos/*.app.tar.gz out/WorshipFluent.app.tar.gz 2>/dev/null || true
+            cp "$B"/macos/*.app.tar.gz.sig out/WorshipFluent.app.tar.gz.sig 2>/dev/null || true
+          fi
+          ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-app
-          path: dist/WorshipFluent-mac.zip
+          name: bundle-${{ matrix.os }}
+          path: out/
 
   release:
-    name: Create GitHub Release
-    needs: [build-windows, build-macos]
+    needs: build
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: windows-exe
+          pattern: bundle-*
+          merge-multiple: true
           path: artifacts/
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: macos-app
-          path: artifacts/
+      - name: Updater manifest
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          node -e '
+            const fs=require("fs"); const [v,url]=process.argv.slice(1);
+            const sig=p=>fs.existsSync(p)?fs.readFileSync(p,"utf8").trim():"";
+            const platforms={};
+            if (fs.existsSync("artifacts/WorshipFluent-Setup.exe")) platforms["windows-x86_64"]={signature:sig("artifacts/WorshipFluent-Setup.exe.sig"),url:`${url}/WorshipFluent-Setup.exe`};
+            if (fs.existsSync("artifacts/WorshipFluent.app.tar.gz")) { const m={signature:sig("artifacts/WorshipFluent.app.tar.gz.sig"),url:`${url}/WorshipFluent.app.tar.gz`}; platforms["darwin-aarch64"]=m; platforms["darwin-x86_64"]=m; }
+            fs.writeFileSync("artifacts/latest.json", JSON.stringify({version:v,notes:"WorshipFluent bridge "+v,pub_date:new Date().toISOString(),platforms},null,2));
+          ' "$V" "$URL"
+          cat artifacts/latest.json
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/WorshipFluent.exe
-            artifacts/WorshipFluent-mac.zip
+          files: artifacts/*
           generate_release_notes: true
