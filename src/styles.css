@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/* Same tokens as the church app (app.worshipfluent.com): the bridge is one more
+   WorshipFluent screen, not a separate product. */
+:root {
+  --wf-bg: #09090f;
+  --wf-card: #111118;
+  --wf-border: #1e1e2a;
+  --wf-gold: #c9a84c;
+  --wf-gold-dim: rgba(201, 168, 76, 0.12);
+  --wf-text: #f5f0e8;
+  --wf-muted: #8a8a9a;
+  --wf-subtle: #3a3a4a;
+  --wf-good: #3ca06e;
+  --wf-good-dim: rgba(60, 160, 110, 0.14);
+  --wf-warn: #e0a96a;
+  --wf-warn-dim: rgba(224, 169, 106, 0.14);
+  --wf-bad: #d96c6c;
+  --wf-bad-dim: rgba(217, 108, 108, 0.14);
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--wf-bg);
+  --color-card: var(--wf-card);
+  --color-border: var(--wf-border);
+  --color-gold: var(--wf-gold);
+  --color-gold-dim: var(--wf-gold-dim);
+  --color-text: var(--wf-text);
+  --color-muted: var(--wf-muted);
+  --color-subtle: var(--wf-subtle);
+  --color-good: var(--wf-good);
+  --color-good-dim: var(--wf-good-dim);
+  --color-warn: var(--wf-warn);
+  --color-warn-dim: var(--wf-warn-dim);
+  --color-bad: var(--wf-bad);
+  --color-bad-dim: var(--wf-bad-dim);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--wf-bg);
+  color: var(--wf-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  letter-spacing: 0.14em;
+  font-weight: 500;
+}
+
+.pulse {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}

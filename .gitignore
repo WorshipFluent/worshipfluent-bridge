@@ -1,8 +1,6 @@
-__pycache__/
-*.py[cod]
-*.spec
-build/
-dist/
-*.egg-info/
-.venv/
-venv/
+node_modules
+dist
+src-tauri/target
+src-tauri/gen
+__pycache__
+.DS_Store

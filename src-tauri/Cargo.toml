@@ -1,0 +1,28 @@
+[package]
+name = "worshipfluent-bridge"
+version = "2.0.0"
+description = "WorshipFluent ProPresenter bridge"
+authors = ["WorshipFluent"]
+edition = "2021"
+
+[lib]
+name = "worshipfluent_bridge_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-http = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-store = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-websocket = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["net", "time", "rt-multi-thread", "macros"] }
+regex = "1"

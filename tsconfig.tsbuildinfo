@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/lib/backend.ts","./src/lib/platform.ts","./src/lib/propresenter.ts","./src/lib/state.ts","./src/screens/pair.tsx","./src/screens/status.tsx"],"version":"5.9.3"}
