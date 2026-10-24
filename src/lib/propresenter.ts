@@ -157,3 +157,98 @@ export async function query(a: PpAddress, path: string): Promise<unknown> {
   if (!r.ok) throw new Error(`ProPresenter ${path} → ${r.status}`);
   return r.json();
 }
+
+// ---------------------------------------------------------------------------
+// Library / playlist / presentation lookups the server asks for (the Songs →
+// Sync from ProPresenter page). Shapes mirror the old Python bridge exactly:
+// the server reads these field names (api/propresenter.py).
+// ---------------------------------------------------------------------------
+
+type Rec = Record<string, unknown>;
+const rec = (v: unknown): Rec => (v && typeof v === "object" ? (v as Rec) : {});
+const str = (v: unknown): string => (typeof v === "string" ? v : "");
+const idOf = (item: Rec): { uuid: string; name: string } => {
+  const id = rec(item.id);
+  return { uuid: str(id.uuid) || str(item.uuid), name: str(id.name) || str(item.name) };
+};
+
+/** [{id, name}] for every library. */
+export async function libraries(a: PpAddress): Promise<{ id: string; name: string }[]> {
+  const data = await query(a, "/libraries");
+  const items = Array.isArray(data) ? data : (rec(data).libraries as unknown[]) ?? [];
+  return items.map((it) => {
+    const { uuid, name } = idOf(rec(it));
+    return { id: uuid, name };
+  });
+}
+
+/** [{name, uuid}] for the presentations in one library. */
+export async function libraryItems(a: PpAddress, libId: string): Promise<{ name: string; uuid: string }[]> {
+  const data = await query(a, `/library/${encodeURIComponent(libId)}`);
+  const items = Array.isArray(data) ? data : (rec(data).items as unknown[]) ?? [];
+  return items.map((it) => ({ name: str(rec(it).name), uuid: str(rec(it).uuid) }));
+}
+
+/**
+ * [{id, name}] for every playlist. ProPresenter nests playlists in folders
+ * ("group" items with children); the old bridge listed only the top level,
+ * which hid anything in a folder. Folders are walked here and shown as
+ * "Folder / Playlist".
+ */
+export async function playlists(a: PpAddress): Promise<{ id: string; name: string }[]> {
+  const data = await query(a, "/playlists");
+  const items = Array.isArray(data) ? data : (rec(data).playlists as unknown[]) ?? [];
+  const out: { id: string; name: string }[] = [];
+  const walk = (list: unknown[], prefix: string) => {
+    for (const raw of list) {
+      const it = rec(raw);
+      const { uuid, name } = idOf(it);
+      const children = it.children as unknown[] | undefined;
+      if (str(it.field_type ?? it.type) === "group" || (Array.isArray(children) && children.length)) {
+        walk(Array.isArray(children) ? children : [], prefix ? `${prefix} / ${name}` : name);
+        continue;
+      }
+      if (uuid) out.push({ id: uuid, name: prefix ? `${prefix} / ${name}` : name });
+    }
+  };
+  walk(items, "");
+  return out;
+}
+
+/** [{name, uuid}] for the presentations in one playlist (uuid = the presentation's, not the item's). */
+export async function playlistItems(a: PpAddress, playlistId: string): Promise<{ name: string; uuid: string }[]> {
+  const data = await query(a, `/playlist/${encodeURIComponent(playlistId)}`);
+  const items = Array.isArray(data) ? data : (rec(data).items as unknown[]) ?? [];
+  const out: { name: string; uuid: string }[] = [];
+  for (const raw of items) {
+    const it = rec(raw);
+    if (str(it.type) !== "presentation") continue;
+    const { uuid: itemUuid, name } = idOf(it);
+    const info = rec(it.presentation_info);
+    const uuid = str(info.presentation_uuid) || str(it.target_uuid) || itemUuid;
+    if (uuid && name) out.push({ name, uuid });
+  }
+  return out;
+}
+
+/** The slide text of one presentation, grouped, header-stripped, empty slides dropped. */
+export async function presentation(a: PpAddress, uuid: string): Promise<{ presentation_path: string; groups: { name: string; slides: { text: string }[] }[] } | null> {
+  const data = await query(a, `/presentation/${encodeURIComponent(uuid)}`);
+  const pres = rec(rec(data).presentation);
+  if (!Object.keys(pres).length) return null;
+  const groups: { name: string; slides: { text: string }[] }[] = [];
+  for (const g of (pres.groups as unknown[]) ?? []) {
+    const group = rec(g);
+    const slides = ((group.slides as unknown[]) ?? [])
+      .map((s) => ({ text: cleanSlideText(str(rec(s).text)) }))
+      .filter((s) => s.text.trim());
+    if (slides.length) groups.push({ name: str(group.name), slides });
+  }
+  return { presentation_path: str(pres.presentation_path), groups };
+}
+
+/** ProPresenter's Bible module puts a header before \r ("Genesis 2:1-3\r1Thus…"); drop it. */
+export function cleanSlideText(text: string): string {
+  const i = text.indexOf("\r");
+  return i >= 0 ? text.slice(i + 1) : text;
+}

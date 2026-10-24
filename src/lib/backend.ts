@@ -3,7 +3,7 @@
  * lookups down. The token travels in the first socket message, never in a URL.
  */
 import { BACKEND_URL, httpFetch, openSocket, Socket, mockState } from "./platform";
-import { PpAddress, PpInfo, Slide, query } from "./propresenter";
+import { PpAddress, PpInfo, Slide, libraries, libraryItems, playlistItems, playlists, presentation, query } from "./propresenter";
 
 export interface PairStart {
   code: string;
@@ -171,35 +171,58 @@ export class ServerLink {
   }
 
   private async answerLookup(m: Record<string, unknown>) {
-    const reply = (type: string, body: Record<string, unknown>) =>
-      this.socket?.send({ type, request_id: m.request_id, ...body });
+    const t = String(m.type);
+    // The server matches a reply to its request BY TYPE (api/propresenter_bridge.py
+    // _REPLY_TO_QUERY), so every outcome, including an error, must use the reply
+    // type that belongs to the request; a generic error type leaves the server
+    // waiting until it times out ("bridge not connected or timed out").
+    const replyType: Record<string, string> = {
+      get_libraries: "libraries_reply",
+      get_library: "library_reply",
+      get_playlists: "playlists_reply",
+      get_playlist: "playlist_reply",
+      get_presentation: "presentation_reply",
+      get_active: "query_reply",
+    };
+    const empty: Record<string, Record<string, unknown>> = {
+      get_libraries: { libraries: [] },
+      get_library: { presentations: [] },
+      get_playlists: { playlists: [] },
+      get_playlist: { presentations: [] },
+      get_presentation: { presentation_path: "", groups: null },
+      get_active: { presentation: null },
+    };
+    const send = (body: Record<string, unknown>) => this.socket?.send({ type: replyType[t] ?? "query_reply", request_id: m.request_id, ...body });
+    const id = String(m.id ?? m.uuid ?? "");
     if (!this.pp) {
-      await reply("query_reply", { error: "ProPresenter not connected" });
+      await send({ ...(empty[t] ?? {}), error: "ProPresenter not connected" });
       return;
     }
     try {
-      switch (m.type) {
+      switch (t) {
         case "get_libraries":
-          await reply("libraries_reply", { libraries: await query(this.pp, "/libraries") });
+          await send({ libraries: await libraries(this.pp) });
           break;
         case "get_library":
-          await reply("library_reply", { library: await query(this.pp, `/library/${m.uuid}`) });
+          await send({ presentations: await libraryItems(this.pp, id) });
           break;
         case "get_playlists":
-          await reply("playlists_reply", { playlists: await query(this.pp, "/playlists") });
+          await send({ playlists: await playlists(this.pp) });
           break;
         case "get_playlist":
-          await reply("playlist_reply", { playlist: await query(this.pp, `/playlist/${m.uuid}`) });
+          await send({ presentations: await playlistItems(this.pp, id) });
           break;
-        case "get_presentation":
-          await reply("presentation_reply", { presentation: await query(this.pp, `/presentation/${m.uuid}`) });
+        case "get_presentation": {
+          const p = await presentation(this.pp, id);
+          await send({ presentation_path: p?.presentation_path ?? "", groups: p?.groups ?? null });
           break;
+        }
         case "get_active":
-          await reply("query_reply", { active: await query(this.pp, "/presentation/active") });
+          await send({ active: await query(this.pp, "/presentation/active") });
           break;
       }
     } catch (e) {
-      await reply("query_reply", { error: String(e) });
+      await send({ ...(empty[t] ?? {}), error: String(e) });
     }
   }
 

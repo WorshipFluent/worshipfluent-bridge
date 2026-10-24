@@ -1,6 +1,6 @@
 [package]
 name = "worshipfluent-bridge"
-version = "2.0.4"
+version = "2.0.5"
 description = "WorshipFluent ProPresenter bridge"
 authors = ["WorshipFluent"]
 edition = "2021"
