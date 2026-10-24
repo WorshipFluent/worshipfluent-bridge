@@ -40,7 +40,23 @@ export async function probe(a: PpAddress, timeoutMs = 3000): Promise<ProbeResult
   const host = a.host.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
   const addr = { host: host || a.host, port: a.port };
   try {
-    const r = await httpFetch(`${base(addr)}/version`, { timeoutMs });
+    // ProPresenter's API: GET /version is at the root (not under /v1); everything else is /v1/…
+    let r = await httpFetch(`http://${addr.host}:${addr.port}/version`, { timeoutMs });
+    if (r.status === 404) {
+      // Some builds answer only the /v1 routes: the slide index the old bridge polled is a fine fingerprint.
+      const r2 = await httpFetch(`${base(addr)}/presentation/slide_index`, { timeoutMs });
+      if (r2.ok) {
+        try {
+          const j2 = (await r2.json()) as Record<string, unknown>;
+          if (j2 && typeof j2 === "object" && "presentation_index" in j2) {
+            return { ok: true, info: { ...addr, version: "ProPresenter", name: addr.host } };
+          }
+        } catch {
+          /* not JSON */
+        }
+      }
+      r = r2;
+    }
     if (!r.ok) return { ok: false, reason: `${addr.host}:${addr.port} answered, but not like ProPresenter (HTTP ${r.status}). Check the port in Preferences → Network.` };
     type Version = { host_description?: string; name?: string; api_version?: string };
     let j: Version | null = null;
