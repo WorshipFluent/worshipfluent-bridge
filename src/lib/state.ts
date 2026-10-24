@@ -21,7 +21,7 @@ import {
   saveSettings,
   setTray,
 } from "./platform";
-import { DEFAULT_PORT, PpAddress, PpInfo, Slide, currentSlide, discover, identify } from "./propresenter";
+import { DEFAULT_PORT, PpAddress, PpInfo, Slide, currentSlide, discover, probe } from "./propresenter";
 
 export type Phase = "unpaired" | "searching" | "ready" | "live";
 
@@ -274,9 +274,9 @@ export function useBridge() {
   async function useManualAddress(host: string, port: number) {
     const a: PpAddress = { host: host.trim(), port };
     patch({ manual: { host: a.host, port } });
-    const hit = await identify(a, 3000);
-    if (hit) await adopt(hit);
-    else patch({ manual: { host: a.host, port, error: `Nothing answered at ${a.host}:${port}. Is ProPresenter's network setting on?` } });
+    const r = await probe(a, 4000);
+    if (r.ok) await adopt(r.info);
+    else patch({ manual: { host: a.host, port, error: r.reason } });
   }
 
   async function togglePause() {

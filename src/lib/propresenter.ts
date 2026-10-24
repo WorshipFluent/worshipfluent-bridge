@@ -29,14 +29,36 @@ export interface Slide {
 const base = (a: PpAddress) => `http://${a.host}:${a.port}/v1`;
 
 export async function identify(a: PpAddress, timeoutMs = 1500): Promise<PpInfo | null> {
+  const r = await probe(a, timeoutMs);
+  return r.ok ? r.info : null;
+}
+
+export type ProbeResult = { ok: true; info: PpInfo } | { ok: false; reason: string };
+
+/** Like identify, but says why it failed, for the manual-address screen. */
+export async function probe(a: PpAddress, timeoutMs = 3000): Promise<ProbeResult> {
+  const host = a.host.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
+  const addr = { host: host || a.host, port: a.port };
   try {
-    const r = await httpFetch(`${base(a)}/version`, { timeoutMs });
-    if (!r.ok) return null;
-    const j = (await r.json()) as { host_description?: string; name?: string; api_version?: string };
-    if (!j || typeof j !== "object" || !("api_version" in j || "host_description" in j)) return null;
-    return { ...a, version: j.host_description ?? j.api_version ?? "", name: j.name ?? a.host };
-  } catch {
-    return null;
+    const r = await httpFetch(`${base(addr)}/version`, { timeoutMs });
+    if (!r.ok) return { ok: false, reason: `${addr.host}:${addr.port} answered, but not like ProPresenter (HTTP ${r.status}). Check the port in Preferences → Network.` };
+    type Version = { host_description?: string; name?: string; api_version?: string };
+    let j: Version | null = null;
+    try {
+      j = (await r.json()) as Version;
+    } catch {
+      return { ok: false, reason: `${addr.host}:${addr.port} answered, but it isn't ProPresenter's network API.` };
+    }
+    if (!j || typeof j !== "object" || !("api_version" in j || "host_description" in j)) {
+      return { ok: false, reason: `${addr.host}:${addr.port} answered, but it isn't ProPresenter's network API.` };
+    }
+    return { ok: true, info: { ...addr, version: j.host_description ?? j.api_version ?? "", name: j.name ?? addr.host } };
+  } catch (e) {
+    const msg = String((e as Error)?.message || e);
+    if (/abort|timeout/i.test(msg)) return { ok: false, reason: `No answer from ${addr.host}:${addr.port} within ${Math.round(timeoutMs / 1000)} s. Is Enable Network on, and is this computer on the same network?` };
+    if (/refused/i.test(msg)) return { ok: false, reason: `${addr.host}:${addr.port} refused the connection: nothing is listening on that port. Check the port in Preferences → Network.` };
+    if (/scope|not allowed|forbidden/i.test(msg)) return { ok: false, reason: `The app isn't allowed to reach ${addr.host} (${msg}). Update the app.` };
+    return { ok: false, reason: `Couldn't reach ${addr.host}:${addr.port}: ${msg}` };
   }
 }
 
