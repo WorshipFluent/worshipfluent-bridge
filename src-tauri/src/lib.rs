@@ -1,9 +1,8 @@
 //! The Rust shell around the WorshipFluent bridge. The app logic (ProPresenter
 //! polling, the server socket, pairing) lives in TypeScript; this side owns what
 //! only a native process can do: the tray icon, one instance at a time, start at
-//! login, the pairing code the installer handed over, and a fast LAN scan.
+//! login, the worshipfluent:// link that pairs the computer, and a fast LAN scan.
 
-use regex::Regex;
 use serde::Serialize;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
@@ -13,47 +12,6 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 use tauri_plugin_autostart::MacosLauncher;
-
-/// The one-time pairing code the installer's file name carried, if any.
-///
-/// Sources, in order: `--pair-code=XXXX` on the command line (the NSIS hook
-/// launches the app with it), a `pairing-code.txt` next to the executable or in
-/// the app's data folder (the hook writes it when it can't pass arguments), or
-/// the executable's own name for the portable build. A tolerant pattern so
-/// `WorshipFluent-Setup-K7PR4Q2MAB (1).exe` still pairs.
-#[tauri::command]
-fn installer_code(app: AppHandle) -> Option<String> {
-    let re = Regex::new(r"(?i)setup[-_ ]([23456789A-HJ-NP-Z]{8,12})").unwrap();
-    for arg in std::env::args() {
-        if let Some(code) = arg.strip_prefix("--pair-code=") {
-            return Some(code.to_uppercase());
-        }
-    }
-    let mut candidates: Vec<std::path::PathBuf> = vec![];
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            candidates.push(dir.join("pairing-code.txt"));
-        }
-        if let Some(name) = exe.file_name().and_then(|n| n.to_str()) {
-            if let Some(m) = re.captures(name) {
-                return Some(m[1].to_uppercase());
-            }
-        }
-    }
-    if let Ok(dir) = app.path().app_data_dir() {
-        candidates.push(dir.join("pairing-code.txt"));
-    }
-    for path in candidates {
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            let code: String = text.trim().to_uppercase();
-            let _ = std::fs::remove_file(&path); // one use
-            if (8..=12).contains(&code.len()) {
-                return Some(code);
-            }
-        }
-    }
-    None
-}
 
 #[derive(Serialize)]
 struct ScanHit {
@@ -132,7 +90,10 @@ fn show_main(app: &AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // A second launch (a worshipfluent:// link while the app is running) focuses the
+        // window; the deep-link plugin picks the URL out of the arguments.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--tray"])))
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
@@ -140,8 +101,15 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_websocket::init())
-        .invoke_handler(tauri::generate_handler![installer_code, scan_lan, set_tray])
+        .invoke_handler(tauri::generate_handler![scan_lan, set_tray])
         .setup(|app| {
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                // Registers worshipfluent:// for the current user even when the app was not
+                // installed through the installer (dev builds, portable copies).
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let _ = app.deep_link().register_all();
+            }
             let open = MenuItem::with_id(app, "open", "Open window", true, None::<&str>)?;
             let pause = MenuItem::with_id(app, "pause", "Pause cues", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

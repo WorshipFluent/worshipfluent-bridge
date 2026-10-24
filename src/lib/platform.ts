@@ -42,10 +42,36 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
   return next;
 }
 
-export async function installerCode(): Promise<string | null> {
-  if (!isTauri) return mockParams?.get("code") ?? null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return (await invoke<string | null>("installer_code")) ?? null;
+/** The pairing code from a worshipfluent://pair?code=… link, if the app was opened by one. */
+export function codeFromLink(urls: string[] | null | undefined): string | null {
+  for (const u of urls ?? []) {
+    try {
+      const url = new URL(u);
+      if (url.protocol === "worshipfluent:" && (url.hostname === "pair" || url.pathname.replace(/^\/+/, "") === "pair")) {
+        const code = url.searchParams.get("code");
+        if (code) return code.toUpperCase();
+      }
+    } catch {
+      /* not a URL */
+    }
+  }
+  return null;
+}
+
+/** Links that opened the app (start-up) and links that arrive while it runs. */
+export async function onPairLink(handler: (code: string) => void): Promise<() => void> {
+  if (!isTauri) {
+    const code = mockParams?.get("code");
+    if (code) setTimeout(() => handler(code.toUpperCase()), 0);
+    return () => undefined;
+  }
+  const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+  const initial = codeFromLink(await getCurrent());
+  if (initial) handler(initial);
+  return onOpenUrl((urls) => {
+    const code = codeFromLink(urls);
+    if (code) handler(code);
+  });
 }
 
 export async function scanLan(port: number): Promise<{ host: string; port: number }[]> {

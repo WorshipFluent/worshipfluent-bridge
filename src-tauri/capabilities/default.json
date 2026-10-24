@@ -2,7 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2/capabilities",
   "identifier": "default",
   "description": "What the WorshipFluent window may do",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-show",
@@ -13,6 +15,7 @@
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
+    "deep-link:default",
     "opener:default",
     "opener:allow-open-url",
     "process:default",
@@ -22,12 +25,24 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://api.worshipfluent.com/*" },
-        { "url": "http://localhost:*/*" },
-        { "url": "http://127.0.0.1:*/*" },
-        { "url": "http://10.*:*/*" },
-        { "url": "http://192.168.*:*/*" },
-        { "url": "http://172.*:*/*" }
+        {
+          "url": "https://api.worshipfluent.com/*"
+        },
+        {
+          "url": "http://localhost:*/*"
+        },
+        {
+          "url": "http://127.0.0.1:*/*"
+        },
+        {
+          "url": "http://10.*:*/*"
+        },
+        {
+          "url": "http://192.168.*:*/*"
+        },
+        {
+          "url": "http://172.*:*/*"
+        }
       ]
     }
   ]

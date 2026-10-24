@@ -51,6 +51,14 @@ export async function pairPoll(code: string, secret?: string, deviceName?: strin
   return r.json();
 }
 
+/** Which church a Finish-setup grant is for (shown before pairing). */
+export async function pairPeek(code: string): Promise<{ status: string; church_name?: string | null }> {
+  if (mockState) return { status: "ok", church_name: "SCC Pasadena" };
+  const r = await httpFetch(`${BACKEND_URL}/api/propresenter/pair/peek?code=${encodeURIComponent(code)}`, { timeoutMs: 8000 });
+  if (!r.ok) return { status: "unknown" };
+  return r.json();
+}
+
 /** A friendly name for this computer, for the Settings card. */
 export function deviceName(): string {
   const ua = navigator.userAgent;

@@ -28,21 +28,38 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "dmg"],
-    "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"],
+    "targets": [
+      "nsis",
+      "dmg"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ],
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "installerHooks": "./installer-hooks.nsh",
         "displayLanguageSelector": false
       }
     },
-    "macOS": { "minimumSystemVersion": "11.0" }
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
   },
   "plugins": {
     "updater": {
-      "endpoints": ["https://github.com/WorshipFluent/worshipfluent-bridge/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://github.com/WorshipFluent/worshipfluent-bridge/releases/latest/download/latest.json"
+      ],
       "pubkey": "REPLACE_WITH_UPDATER_PUBLIC_KEY"
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "worshipfluent"
+        ]
+      }
     }
   }
 }

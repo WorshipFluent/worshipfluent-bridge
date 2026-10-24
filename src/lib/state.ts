@@ -8,15 +8,15 @@
  * is frozen in that state with sample facts, for screenshots and design review.
  */
 import { useEffect, useRef, useState } from "react";
-import { ServerLink, deviceName, pairPoll, pairStart } from "./backend";
+import { ServerLink, deviceName, pairPeek, pairPoll, pairStart } from "./backend";
 import {
   APP_VERSION,
   Settings,
   autostart,
   checkForUpdate,
-  installerCode,
   loadSettings,
   mockState,
+  onPairLink,
   onTogglePause,
   saveSettings,
   setTray,
@@ -128,24 +128,16 @@ export function useBridge() {
       patch({ autostart: auto, paused: Boolean(settings.current.paused) });
       void checkForUpdate().then((u) => patch({ update: u }));
       await onTogglePause(() => togglePause());
+      // A worshipfluent://pair?code=… link, now or later: ask before pairing.
+      await onPairLink(async (code) => {
+        const peek = await pairPeek(code).catch(() => ({ status: "unknown" as const }));
+        if (peek.status === "ok") patch({ booting: false, grant: { code, churchName: peek.church_name || "this church" } });
+        else patch({ booting: false, grant: { code, churchName: "this church", error: "That link has expired. Click Finish setup on the web again." } });
+      });
       if (settings.current.token && settings.current.churchId) {
         await becomePaired();
-      } else {
-        const code = await installerCode();
-        if (code) {
-          const r = await pairPoll(code, undefined, deviceName()).catch(() => ({ status: "unknown" as const }));
-          if (r.status === "approved") {
-            settings.current = await saveSettings({
-              token: r.token,
-              churchId: r.church_id,
-              churchName: r.church_name,
-              deviceName: r.device_name,
-            });
-            await becomePaired();
-            return;
-          }
-        }
-        if (!cancelled) await startPairing();
+      } else if (!cancelled) {
+        await startPairing();
       }
       patch({ booting: false });
     })();
