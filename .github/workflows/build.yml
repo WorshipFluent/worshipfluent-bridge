@@ -20,16 +20,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        os: [windows-latest, macos-latest]
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
           - os: macos-latest
             target: universal-apple-darwin
+        # The Mac build waits for a Mac church (and the Apple account): BUILD_MAC=true turns it on.
+        exclude:
+          - os: ${{ vars.BUILD_MAC == 'true' && 'none' || 'macos-latest' }}
     runs-on: ${{ matrix.os }}
-    # The Mac build waits for a Mac church (and the Apple account): BUILD_MAC=true turns it on.
-    if: ${{ matrix.os == 'windows-latest' || vars.BUILD_MAC == 'true' }}
     permissions:
       contents: write
+    env:
+      HAS_AZURE: ${{ secrets.AZURE_CLIENT_ID != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -84,9 +88,7 @@ jobs:
       # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE. Without them the
       # installer is built unsigned (SmartScreen warns). Swap this step for SSL.com eSigner if needed.
       - name: Sign the Windows installer
-        if: ${{ matrix.os == 'windows-latest' && env.AZURE_CLIENT_ID != '' }}
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        if: ${{ matrix.os == 'windows-latest' && env.HAS_AZURE == 'true' }}
         uses: azure/trusted-signing-action@v0.5.1
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
