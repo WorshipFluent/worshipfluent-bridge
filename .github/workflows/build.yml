@@ -245,3 +245,6 @@ jobs:
           files: artifacts/*
           generate_release_notes: true
           prerelease: ${{ vars.BRIDGE_V2_PROMOTED != 'true' }}
+          # GitHub otherwise picks "latest" by publish time: a slower build of an older tag
+          # that finishes after a newer one would steal the download button (2.0.2 did).
+          make_latest: ${{ vars.BRIDGE_V2_PROMOTED == 'true' }}
