@@ -1,5 +1,5 @@
 import { useBridge } from "./lib/state";
-import { Pair } from "./screens/Pair";
+import { Confirm, Pair } from "./screens/Pair";
 import { Status } from "./screens/Status";
 
 export default function App() {
@@ -13,7 +13,13 @@ export default function App() {
   }
   return (
     <div className="relative h-full overflow-hidden">
-      {state.phase === "unpaired" ? <Pair state={state} /> : <Status state={state} actions={actions} />}
+      {state.grant ? (
+        <Confirm state={state} onPair={actions.acceptGrant} onCancel={actions.declineGrant} />
+      ) : state.phase === "unpaired" ? (
+        <Pair state={state} />
+      ) : (
+        <Status state={state} actions={actions} />
+      )}
     </div>
   );
 }

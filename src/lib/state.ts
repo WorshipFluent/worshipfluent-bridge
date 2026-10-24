@@ -27,6 +27,8 @@ export type Phase = "unpaired" | "searching" | "ready" | "live";
 
 export interface AppState {
   phase: Phase;
+  /** A deep link (worshipfluent://pair?code=…) arrived: confirm before pairing. */
+  grant?: { code: string; churchName: string; busy?: boolean; error?: string } | null;
   booting: boolean;
   churchName?: string;
   deviceName?: string;
@@ -45,6 +47,7 @@ export interface AppState {
 }
 
 const MOCKS: Record<string, Partial<AppState>> = {
+  confirm: { phase: "unpaired", grant: { code: "K7PR4Q2MAB", churchName: "SCC Pasadena" } },
   pair: {
     phase: "unpaired",
     pairing: { code: "K7PR-4Q2M", approveUrl: "https://app.worshipfluent.com/settings?pair=K7PR-4Q2M", expiresAt: Date.now() + 540_000, waiting: true },
@@ -303,9 +306,25 @@ export function useBridge() {
     await startPairing();
   }
 
+  async function acceptGrant() {
+    const g = state.grant;
+    if (!g) return;
+    patch({ grant: { ...g, busy: true } });
+    const r = await pairPoll(g.code, undefined, deviceName()).catch(() => ({ status: "unknown" as const }));
+    if (r.status === "approved") {
+      settings.current = await saveSettings({ token: r.token, churchId: r.church_id, churchName: r.church_name, deviceName: r.device_name });
+      patch({ grant: null });
+      await becomePaired();
+    } else {
+      patch({ grant: { ...g, busy: false, error: "That link has expired. Click Finish setup on the web again." } });
+    }
+  }
+
   return {
     state,
     actions: {
+      acceptGrant,
+      declineGrant: () => patch({ grant: null }),
       startPairing,
       useManualAddress,
       openManual: () => patch((st) => ({ manual: { host: "", port: st.pp?.port ?? DEFAULT_PORT } })),

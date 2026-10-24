@@ -3,6 +3,46 @@ import { useEffect, useState } from "react";
 import { AppState } from "../lib/state";
 import { openUrl, APP_URL } from "../lib/platform";
 
+export function Confirm({ state, onPair, onCancel }: { state: AppState; onPair: () => void; onCancel: () => void }) {
+  const g = state.grant!;
+  return (
+    <div className="flex h-full flex-col gap-6 p-7">
+      <div className="flex flex-col gap-2">
+        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-gold">WorshipFluent</div>
+        <h1>Pair this computer with {g.churchName}?</h1>
+        <p className="text-muted">
+          ProPresenter slides from this computer will be sent to {g.churchName}'s services. You can unpair any time from the app or
+          from Settings on the web.
+        </p>
+      </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="grid grid-cols-[112px_1fr] gap-y-1">
+          <div className="text-muted">Church</div>
+          <div className="font-semibold">{g.churchName}</div>
+          <div className="text-muted">This computer</div>
+          <div className="font-semibold">{deviceLabel()}</div>
+          <div className="text-muted">Request from</div>
+          <div className="font-semibold">app.worshipfluent.com, just now</div>
+        </div>
+      </div>
+      {g.error && <p className="rounded-lg bg-bad-dim px-3 py-2 text-bad">{g.error}</p>}
+      <div className="mt-auto flex items-center justify-end gap-2">
+        <button className="rounded-lg border border-border px-4 py-2 font-semibold hover:bg-gold-dim" onClick={onCancel} disabled={g.busy}>
+          Not now
+        </button>
+        <button className="rounded-lg bg-gold px-5 py-2 font-semibold text-bg hover:brightness-110 disabled:opacity-50" onClick={onPair} disabled={g.busy}>
+          {g.busy ? "Pairing…" : "Pair"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function deviceLabel() {
+  const ua = navigator.userAgent;
+  return /Windows/.test(ua) ? "This Windows PC" : /Mac/.test(ua) ? "This Mac" : "This computer";
+}
+
 export function Pair({ state }: { state: AppState }) {
   const p = state.pairing;
   const [now, setNow] = useState(Date.now());
