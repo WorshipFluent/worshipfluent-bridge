@@ -70,7 +70,6 @@ jobs:
         with:
           args: --target x86_64-pc-windows-msvc
           includeUpdaterJson: false
-          uploadRelease: false
 
       # Azure Trusted Signing. Repo secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
       # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE. Without them the
@@ -153,40 +152,38 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
-      - name: Build (Tauri)
-        uses: tauri-apps/tauri-action@v0
+      # Apple signing and notarization run only when the secrets exist. Passing the
+      # variables empty is not the same as not passing them: Tauri sees an
+      # APPLE_CERTIFICATE and tries to import it, and the first Mac run (11/7)
+      # failed in codesign on an empty certificate. Without them the app is
+      # built unsigned (Gatekeeper: right-click, Open).
+      - name: Apple signing secrets, when present
+        shell: bash
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            for k in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+              printf '%s<<EOF\n%s\nEOF\n' "$k" "${!k}" >> "$GITHUB_ENV"
+            done
+            echo "Apple signing: on"
+          else
+            echo "Apple signing: off (no APPLE_CERTIFICATE secret); building unsigned"
+          fi
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Build (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: --target universal-apple-darwin
           includeUpdaterJson: false
-          uploadRelease: false
-
-      # Azure Trusted Signing. Repo secrets: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
-      # AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE. Without them the
-      # installer is built unsigned (SmartScreen warns). Swap this step for SSL.com eSigner if needed.
-      - name: Sign the Windows installer
-        if: false
-        uses: azure/trusted-signing-action@v0.5.1
-        with:
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
-          files-folder: src-tauri/target/universal-apple-darwin/release/bundle/nsis
-          files-folder-filter: exe
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
 
       - name: Collect release files
         shell: bash
