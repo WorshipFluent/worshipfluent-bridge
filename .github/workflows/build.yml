@@ -182,7 +182,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: --target universal-apple-darwin
+          # The updater archive (.app.tar.gz + .sig) is made only from the "app" bundle
+          # target. tauri.conf.json lists nsis and dmg, so 2.0.7 built the disk image alone
+          # ("no updater-enabled targets were built") and Mac installs could not self-update.
+          args: --target universal-apple-darwin --bundles app,dmg
           includeUpdaterJson: false
 
       - name: Collect release files
@@ -199,6 +202,14 @@ jobs:
             cp "$B"/macos/*.app.tar.gz.sig out/WorshipFluent.app.tar.gz.sig 2>/dev/null || true
           fi
           ls -la out
+          # With the signing key present, a release without the updater archive means Mac
+          # installs silently stop updating. Fail here instead of shipping it.
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && { [ ! -s out/WorshipFluent.app.tar.gz ] || [ ! -s out/WorshipFluent.app.tar.gz.sig ]; }; then
+            echo "::error::Signing key is set but no Mac updater archive was built (WorshipFluent.app.tar.gz/.sig)"
+            exit 1
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       - uses: actions/upload-artifact@v4
         with:
