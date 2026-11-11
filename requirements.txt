@@ -1,7 +1,0 @@
-requests
-websockets
-certifi
-pystray
-Pillow
-zeroconf
-pyinstaller
