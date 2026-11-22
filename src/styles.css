@@ -18,7 +18,7 @@
   --wf-bad: #d96c6c;
   --wf-bad-dim: rgba(217, 108, 108, 0.14);
   --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-display: "Philosopher", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
   color-scheme: dark;
 }
@@ -57,10 +57,12 @@ body,
   user-select: none;
 }
 
+/* Philosopher Regular: the family of the name in the logo. Only the regular
+   weight is loaded, so the heading asks for 400 and is never thickened. */
 h1 {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 30px;
+  font-weight: 400;
+  font-size: 28px;
   line-height: 1.1;
   margin: 0;
   text-wrap: balance;
