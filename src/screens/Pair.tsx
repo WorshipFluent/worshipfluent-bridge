@@ -8,7 +8,7 @@ export function Confirm({ state, onPair, onCancel }: { state: AppState; onPair: 
   return (
     <div className="flex h-full flex-col gap-6 p-7">
       <div className="flex flex-col gap-2">
-        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-gold">WorshipFluent</div>
+        <img src="/logo-wide.svg" alt="WorshipFluent" width={192} height={26} className="h-[26px] w-auto self-start" />
         <h1>Pair this computer with {g.churchName}?</h1>
         <p className="text-muted">
           ProPresenter slides from this computer will be sent to {g.churchName}'s services. You can unpair any time from the app or
@@ -55,7 +55,7 @@ export function Pair({ state }: { state: AppState }) {
   return (
     <div className="flex h-full flex-col gap-5 p-7">
       <div className="flex flex-col gap-2">
-        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-gold">WorshipFluent</div>
+        <img src="/logo-wide.svg" alt="WorshipFluent" width={192} height={26} className="h-[26px] w-auto self-start" />
         <h1>Pair this computer</h1>
         {state.serverError ? (
           <p className="rounded-lg bg-bad-dim px-3 py-2 text-bad">{state.serverError}. Pair it again to continue.</p>

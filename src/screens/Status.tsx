@@ -61,7 +61,10 @@ export function Status({ state, actions }: { state: AppState; actions: Actions }
     <div className="flex h-full flex-col gap-5 p-7">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-gold">{state.churchName ?? "WorshipFluent"}</div>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-gold">
+            <img src="/symbol.svg" alt="" width={34} height={14} className="h-[14px] w-auto" />
+            {state.churchName ?? "WorshipFluent"}
+          </div>
           <h1>{title}</h1>
         </div>
         {state.paused && <span className="rounded-full bg-warn-dim px-3 py-1 text-xs font-semibold text-warn">Cues paused</span>}
